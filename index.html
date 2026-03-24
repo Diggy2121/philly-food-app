@@ -1,4 +1,4 @@
-html id="offline-full-app
+HTML
 <!DOCTYPE html>
 <html>
 <head>
@@ -23,23 +23,17 @@ html id="offline-full-app
       box-shadow:0 6px 18px rgba(0,0,0,0.2);
     }
 
-    input, button {
+    input, select, button {
       width:100%;
       padding:8px;
       margin-top:6px;
       border-radius:8px;
-      border:1px solid #ccc;
     }
 
     button {
       background:black;
       color:white;
       border:none;
-    }
-
-    #crawlList {
-      margin-top:8px;
-      font-size:12px;
     }
   </style>
 </head>
@@ -48,104 +42,161 @@ html id="offline-full-app
 <div class="panel">
   <input id="search" placeholder="Search...">
 
-  <button onclick="toggleBars()">🍸 Toggle Bars</button>
-  <button onclick="buildCrawl()">🗺️ Open Crawl</button>
+  <select id="neighborhood" onchange="addMarkers()">
+    <option value="all">All Neighborhoods</option>
+    <option value="center">Center City</option>
+    <option value="fishtown">Fishtown</option>
+    <option value="south">South Philly</option>
+    <option value="west">West Philly</option>
+  </select>
 
-  <div id="crawlList"></div>
+  <button onclick="toggleBars()">🍸 Toggle Bars</button>
+  <button onclick="openForm()">➕ Add Location</button>
 </div>
 
 <div id="map"></div>
 
+<!-- FORM MODAL -->
+<div id="formModal" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000;">
+  <div style="background:white; margin:80px auto; padding:20px; width:90%; max-width:320px; border-radius:12px;">
+    <h3>Add Location</h3>
+
+    <input id="placeName" placeholder="Name">
+
+    <select id="placeType">
+      <option value="restaurant">Restaurant</option>
+      <option value="bar">Bar</option>
+    </select>
+
+    <select id="placeArea">
+      <option value="center">Center City</option>
+      <option value="fishtown">Fishtown</option>
+      <option value="south">South Philly</option>
+      <option value="west">West Philly</option>
+    </select>
+
+    <button onclick="savePlace()">Save</button>
+    <button onclick="closeForm()" style="background:gray;">Cancel</button>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
+// MAP
 const map = L.map('map').setView([39.9526, -75.1652], 13);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 let markers = [];
 let showBars = true;
-let crawl = [];
 
-// 🔵 RESTAURANTS
-const restaurants = [
-"Osteria Ama","Murphs","Pesto Ristorante","Emmy Squared","Alice Pizza",
-"Cafe Carmela","Tulip","Laser Wolf","Suraya","Kalaya","Amada",
-"La Nonna","Sally’s","Trattoria Carina","Ambrosia","Rouge",
-"Pub & Kitchen","Pizzeria Vetri","Tria","El Vez","Pietros",
-"La Fontana","Pier Bar","Los Restobar","El Chingon",
-"Mr Martinos Trattoria","Pine Street Grill","Villa Di Roma",
-"Fiorella Pasta","Bistro Romano","Ralph’s Italian","Spasso",
-"Victor Cafe","Gran Caffe","Vetri Cucina","Prunella",
-"Pizzeria Beddia","Medium Rare","Radicchio","Elma",
-"Percy","Grandma’s","Dan Dan","Pizza Pizzata",
-"Osteria","Char","Square Pie","Tonalli",
-"Comfort & Floyd","Grace & Proper","Marina",
-"Four Humours","117 Restaurant & Brewery","Rustica",
-"Rosy’s Taco Bar","Los Gallos","Butcher Bar",
-"Rex at the Royal","Meetinghouse","Kitchen & Kocktails",
-"Kinto","Circles & Squares","The Bakery",
-"Piccolina","Le Caveau","Dante & Luigi’s",
-"Cilantro","South Philly Barbacoa","Saloon",
-"Los Camaradas","La Sera","Casa Nostra",
-"Casablanca","Scampi","Bucatini Cafe",
-"L’Angelo’s","Founded Pizza","Little Water",
-"River Twice","La Llorona Cantina","Mi Vida",
-"Lucky Duck","Side Eye"
-];
+// NEIGHBORHOOD CENTERS
+const centers = {
+  center: [39.9526, -75.1652],
+  fishtown: [39.969, -75.135],
+  south: [39.933, -75.160],
+  west: [39.960, -75.200]
+};
 
-// 🔴 BARS
-const bars = [
-"Harp & Crown","Walnut Beer Garden","Mona Speakeasy","Newsroom Speakeasy",
-"Jerry’s Bar","R&D","Mifflin Tavern","Darling Jack’s","Almanac",
-"Jaffa","Casa Oui","Next of Kin","Static","Sidecar",
-"Chicks","Sardine Bar","Four Humours","Sassafras",
-"Vintage","Cormorant","Forest & Main","Dock Street",
-"The Franklin Mortgage","Bar1010","Grace Tavern","River Twice"
-];
+// RESTAURANTS
+const restaurants = {
+  center: ["El Vez","Tria","Pizzeria Vetri","Amada","Rouge"],
+  fishtown: ["Laser Wolf","Suraya","Kalaya","Pizzeria Beddia"],
+  south: ["Victor Cafe","Villa Di Roma","Ralph’s","Dante & Luigi’s"],
+  west: ["White Dog Cafe","Han Dynasty"]
+};
 
-// RANDOMIZED POSITIONS AROUND CENTER (so they spread out)
-function randomOffset() {
-  return (Math.random() - 0.5) * 0.02;
+// BARS
+const bars = {
+  center: ["Harp & Crown","Franklin Mortgage"],
+  fishtown: ["Johnny Brenda’s","Next of Kin"],
+  south: ["Tap Room"],
+  west: ["Dock Street"]
+};
+
+// LOAD CUSTOM DATA
+let customRestaurants = JSON.parse(localStorage.getItem("restaurants") || "{}");
+let customBars = JSON.parse(localStorage.getItem("bars") || "{}");
+
+function saveData() {
+  localStorage.setItem("restaurants", JSON.stringify(customRestaurants));
+  localStorage.setItem("bars", JSON.stringify(customBars));
 }
 
+// RANDOM OFFSET
+function offset(base) {
+  return [
+    base[0] + (Math.random() - 0.5) * 0.01,
+    base[1] + (Math.random() - 0.5) * 0.01
+  ];
+}
+
+// ADD MARKERS
 function addMarkers() {
   markers.forEach(m => map.removeLayer(m));
   markers = [];
 
   const search = document.getElementById("search").value.toLowerCase();
+  const selected = document.getElementById("neighborhood").value;
 
-  restaurants.forEach(name => {
-    if (!name.toLowerCase().includes(search)) return;
+  // DEFAULT RESTAURANTS
+  Object.keys(restaurants).forEach(area => {
+    if (selected !== "all" && selected !== area) return;
 
-    const marker = L.circleMarker(
-      [39.9526 + randomOffset(), -75.1652 + randomOffset()],
-      { color:"blue", fillColor:"blue", radius:6, fillOpacity:1 }
-    ).addTo(map);
-
-    marker.bindPopup(`
-      <b>${name}</b><br>
-      <button onclick="addToCrawl('${name}')">Add to Crawl</button>
-    `);
-
-    markers.push(marker);
-  });
-
-  if (showBars) {
-    bars.forEach(name => {
+    restaurants[area].forEach(name => {
       if (!name.toLowerCase().includes(search)) return;
 
-      const marker = L.circleMarker(
-        [39.9526 + randomOffset(), -75.1652 + randomOffset()],
-        { color:"red", fillColor:"red", radius:6, fillOpacity:1 }
-      ).addTo(map);
+      const marker = L.circleMarker(offset(centers[area]), {
+        color:"blue", fillColor:"blue", radius:6, fillOpacity:1
+      }).addTo(map);
 
-      marker.bindPopup(`
-        <b>${name}</b><br>
-        <button onclick="addToCrawl('${name}')">Add to Crawl</button>
-      `);
-
+      marker.bindPopup(`<b>${name}</b>`);
       markers.push(marker);
+    });
+  });
+
+  // DEFAULT BARS
+  if (showBars) {
+    Object.keys(bars).forEach(area => {
+      if (selected !== "all" && selected !== area) return;
+
+      bars[area].forEach(name => {
+        if (!name.toLowerCase().includes(search)) return;
+
+        const marker = L.circleMarker(offset(centers[area]), {
+          color:"red", fillColor:"red", radius:6, fillOpacity:1
+        }).addTo(map);
+
+        marker.bindPopup(`<b>${name}</b>`);
+        markers.push(marker);
+      });
+    });
+  }
+
+  // CUSTOM RESTAURANTS
+  Object.keys(customRestaurants).forEach(area => {
+    customRestaurants[area].forEach(name => {
+      const marker = L.circleMarker(offset(centers[area]), {
+        color:"blue", fillColor:"blue", radius:6, fillOpacity:1
+      }).addTo(map);
+
+      marker.bindPopup(`<b>${name}</b> (custom)`);
+      markers.push(marker);
+    });
+  });
+
+  // CUSTOM BARS
+  if (showBars) {
+    Object.keys(customBars).forEach(area => {
+      customBars[area].forEach(name => {
+        const marker = L.circleMarker(offset(centers[area]), {
+          color:"red", fillColor:"red", radius:6, fillOpacity:1
+        }).addTo(map);
+
+        marker.bindPopup(`<b>${name}</b> (custom)`);
+        markers.push(marker);
+      });
     });
   }
 }
@@ -159,21 +210,38 @@ function toggleBars() {
   addMarkers();
 }
 
-// CRAWL
-function addToCrawl(name) {
-  crawl.push(name);
-  document.getElementById("crawlList").innerHTML =
-    "<b>Crawl:</b><br>" + crawl.join("<br>");
+// FORM
+function openForm() {
+  document.getElementById("formModal").style.display = "block";
 }
 
-function buildCrawl() {
-  if (crawl.length < 2) {
-    alert("Add at least 2 spots");
+function closeForm() {
+  document.getElementById("formModal").style.display = "none";
+}
+
+// SAVE PLACE
+function savePlace() {
+  const name = document.getElementById("placeName").value;
+  const type = document.getElementById("placeType").value;
+  const area = document.getElementById("placeArea").value;
+
+  if (!name) {
+    alert("Enter a name");
     return;
   }
 
-  const query = crawl.join(" to ");
-  window.open(`https://www.google.com/maps/search/${encodeURIComponent(query)}`);
+  if (type === "restaurant") {
+    if (!customRestaurants[area]) customRestaurants[area] = [];
+    customRestaurants[area].push(name);
+  } else {
+    if (!customBars[area]) customBars[area] = [];
+    customBars[area].push(name);
+  }
+
+  saveData();
+  closeForm();
+  addMarkers();
+  document.getElementById("placeName").value = "";
 }
 
 // INIT
