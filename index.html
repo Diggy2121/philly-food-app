@@ -1,13 +1,14 @@
+html id="offline-full-app
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Philly Food Map (Offline)</title>
+  <title>Philly Food Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
   <style>
-    body { margin:0; }
+    body { margin:0; font-family: -apple-system; }
     #map { height:100vh; }
 
     .panel {
@@ -16,15 +17,41 @@
       left:10px;
       z-index:1000;
       background:white;
-      padding:10px;
-      border-radius:10px;
+      padding:12px;
+      border-radius:12px;
+      width:260px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.2);
+    }
+
+    input, button {
+      width:100%;
+      padding:8px;
+      margin-top:6px;
+      border-radius:8px;
+      border:1px solid #ccc;
+    }
+
+    button {
+      background:black;
+      color:white;
+      border:none;
+    }
+
+    #crawlList {
+      margin-top:8px;
+      font-size:12px;
     }
   </style>
 </head>
 <body>
 
 <div class="panel">
-  Philly Food Map (Offline)
+  <input id="search" placeholder="Search...">
+
+  <button onclick="toggleBars()">🍸 Toggle Bars</button>
+  <button onclick="buildCrawl()">🗺️ Open Crawl</button>
+
+  <div id="crawlList"></div>
 </div>
 
 <div id="map"></div>
@@ -34,55 +61,123 @@
 <script>
 const map = L.map('map').setView([39.9526, -75.1652], 13);
 
-// Map tiles (need internet first time, then cached)
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let markers = [];
+let showBars = true;
+let crawl = [];
 
 // 🔵 RESTAURANTS
 const restaurants = [
-  ["Osteria", 39.968, -75.160],
-  ["Murphs", 39.969, -75.135],
-  ["Pizzeria Beddia", 39.965, -75.135],
-  ["Laser Wolf", 39.968, -75.135],
-  ["Suraya", 39.968, -75.135],
-  ["Kalaya", 39.967, -75.135],
-  ["El Vez", 39.950, -75.170],
-  ["Dan Dan", 39.950, -75.168],
-  ["Victor Cafe", 39.933, -75.157],
-  ["Fiorella", 39.948, -75.145]
+"Osteria Ama","Murphs","Pesto Ristorante","Emmy Squared","Alice Pizza",
+"Cafe Carmela","Tulip","Laser Wolf","Suraya","Kalaya","Amada",
+"La Nonna","Sally’s","Trattoria Carina","Ambrosia","Rouge",
+"Pub & Kitchen","Pizzeria Vetri","Tria","El Vez","Pietros",
+"La Fontana","Pier Bar","Los Restobar","El Chingon",
+"Mr Martinos Trattoria","Pine Street Grill","Villa Di Roma",
+"Fiorella Pasta","Bistro Romano","Ralph’s Italian","Spasso",
+"Victor Cafe","Gran Caffe","Vetri Cucina","Prunella",
+"Pizzeria Beddia","Medium Rare","Radicchio","Elma",
+"Percy","Grandma’s","Dan Dan","Pizza Pizzata",
+"Osteria","Char","Square Pie","Tonalli",
+"Comfort & Floyd","Grace & Proper","Marina",
+"Four Humours","117 Restaurant & Brewery","Rustica",
+"Rosy’s Taco Bar","Los Gallos","Butcher Bar",
+"Rex at the Royal","Meetinghouse","Kitchen & Kocktails",
+"Kinto","Circles & Squares","The Bakery",
+"Piccolina","Le Caveau","Dante & Luigi’s",
+"Cilantro","South Philly Barbacoa","Saloon",
+"Los Camaradas","La Sera","Casa Nostra",
+"Casablanca","Scampi","Bucatini Cafe",
+"L’Angelo’s","Founded Pizza","Little Water",
+"River Twice","La Llorona Cantina","Mi Vida",
+"Lucky Duck","Side Eye"
 ];
 
 // 🔴 BARS
 const bars = [
-  ["Harp & Crown", 39.949, -75.165],
-  ["Walnut Beer Garden", 39.948, -75.170],
-  ["Jerry’s Bar", 39.940, -75.155],
-  ["Sidecar", 39.943, -75.158],
-  ["Sardine Bar", 39.933, -75.157]
+"Harp & Crown","Walnut Beer Garden","Mona Speakeasy","Newsroom Speakeasy",
+"Jerry’s Bar","R&D","Mifflin Tavern","Darling Jack’s","Almanac",
+"Jaffa","Casa Oui","Next of Kin","Static","Sidecar",
+"Chicks","Sardine Bar","Four Humours","Sassafras",
+"Vintage","Cormorant","Forest & Main","Dock Street",
+"The Franklin Mortgage","Bar1010","Grace Tavern","River Twice"
 ];
 
-// ADD BLUE DOTS
-restaurants.forEach(r => {
-  L.circleMarker([r[1], r[2]], {
-    color: "blue",
-    fillColor: "blue",
-    fillOpacity: 1,
-    radius: 6
-  }).addTo(map)
-    .bindPopup(`<b>${r[0]}</b><br>
-    <a href="https://www.google.com/maps/search/${r[0]}" target="_blank">Open in Maps</a>`);
-});
+// RANDOMIZED POSITIONS AROUND CENTER (so they spread out)
+function randomOffset() {
+  return (Math.random() - 0.5) * 0.02;
+}
 
-// ADD RED DOTS
-bars.forEach(b => {
-  L.circleMarker([b[1], b[2]], {
-    color: "red",
-    fillColor: "red",
-    fillOpacity: 1,
-    radius: 6
-  }).addTo(map)
-    .bindPopup(`<b>${b[0]}</b><br>
-    <a href="https://www.google.com/maps/search/${b[0]}" target="_blank">Open in Maps</a>`);
-});
+function addMarkers() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+
+  const search = document.getElementById("search").value.toLowerCase();
+
+  restaurants.forEach(name => {
+    if (!name.toLowerCase().includes(search)) return;
+
+    const marker = L.circleMarker(
+      [39.9526 + randomOffset(), -75.1652 + randomOffset()],
+      { color:"blue", fillColor:"blue", radius:6, fillOpacity:1 }
+    ).addTo(map);
+
+    marker.bindPopup(`
+      <b>${name}</b><br>
+      <button onclick="addToCrawl('${name}')">Add to Crawl</button>
+    `);
+
+    markers.push(marker);
+  });
+
+  if (showBars) {
+    bars.forEach(name => {
+      if (!name.toLowerCase().includes(search)) return;
+
+      const marker = L.circleMarker(
+        [39.9526 + randomOffset(), -75.1652 + randomOffset()],
+        { color:"red", fillColor:"red", radius:6, fillOpacity:1 }
+      ).addTo(map);
+
+      marker.bindPopup(`
+        <b>${name}</b><br>
+        <button onclick="addToCrawl('${name}')">Add to Crawl</button>
+      `);
+
+      markers.push(marker);
+    });
+  }
+}
+
+// SEARCH
+document.getElementById("search").addEventListener("input", addMarkers);
+
+// TOGGLE
+function toggleBars() {
+  showBars = !showBars;
+  addMarkers();
+}
+
+// CRAWL
+function addToCrawl(name) {
+  crawl.push(name);
+  document.getElementById("crawlList").innerHTML =
+    "<b>Crawl:</b><br>" + crawl.join("<br>");
+}
+
+function buildCrawl() {
+  if (crawl.length < 2) {
+    alert("Add at least 2 spots");
+    return;
+  }
+
+  const query = crawl.join(" to ");
+  window.open(`https://www.google.com/maps/search/${encodeURIComponent(query)}`);
+}
+
+// INIT
+addMarkers();
 </script>
 
 </body>
