@@ -4,11 +4,10 @@ HTML
 <head>
   <title>Philly Food Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
   <style>
-    body { margin:0; font-family: -apple-system; }
+    body { margin:0; font-family:-apple-system; }
     #map { height:100vh; }
 
     .panel {
@@ -41,40 +40,21 @@ HTML
 
 <div class="panel">
   <input id="search" placeholder="Search...">
-
-  <select id="neighborhood" onchange="addMarkers()">
-    <option value="all">All Neighborhoods</option>
-    <option value="center">Center City</option>
-    <option value="fishtown">Fishtown</option>
-    <option value="south">South Philly</option>
-    <option value="west">West Philly</option>
-  </select>
-
   <button onclick="toggleBars()">🍸 Toggle Bars</button>
   <button onclick="openForm()">➕ Add Location</button>
 </div>
 
 <div id="map"></div>
 
-<!-- FORM MODAL -->
+<!-- FORM -->
 <div id="formModal" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000;">
   <div style="background:white; margin:80px auto; padding:20px; width:90%; max-width:320px; border-radius:12px;">
     <h3>Add Location</h3>
-
     <input id="placeName" placeholder="Name">
-
     <select id="placeType">
       <option value="restaurant">Restaurant</option>
       <option value="bar">Bar</option>
     </select>
-
-    <select id="placeArea">
-      <option value="center">Center City</option>
-      <option value="fishtown">Fishtown</option>
-      <option value="south">South Philly</option>
-      <option value="west">West Philly</option>
-    </select>
-
     <button onclick="savePlace()">Save</button>
     <button onclick="closeForm()" style="background:gray;">Cancel</button>
   </div>
@@ -83,7 +63,6 @@ HTML
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-// MAP
 const map = L.map('map').setView([39.9526, -75.1652], 13);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -91,45 +70,46 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 let markers = [];
 let showBars = true;
 
-// NEIGHBORHOOD CENTERS
-const centers = {
-  center: [39.9526, -75.1652],
-  fishtown: [39.969, -75.135],
-  south: [39.933, -75.160],
-  west: [39.960, -75.200]
-};
+// ✅ REAL LOCATIONS (core + expanded)
+const places = [
+  {name:"Osteria", lat:39.9681, lng:-75.1607, type:"restaurant"},
+  {name:"Murphs", lat:39.9696, lng:-75.1348, type:"restaurant"},
+  {name:"Pizzeria Beddia", lat:39.9656, lng:-75.1340, type:"restaurant"},
+  {name:"Laser Wolf", lat:39.9682, lng:-75.1355, type:"restaurant"},
+  {name:"Suraya", lat:39.9684, lng:-75.1350, type:"restaurant"},
+  {name:"Kalaya", lat:39.9677, lng:-75.1349, type:"restaurant"},
+  {name:"El Vez", lat:39.9495, lng:-75.1700, type:"restaurant"},
+  {name:"Dan Dan", lat:39.9506, lng:-75.1680, type:"restaurant"},
+  {name:"Victor Cafe", lat:39.9330, lng:-75.1570, type:"restaurant"},
+  {name:"Fiorella", lat:39.9485, lng:-75.1455, type:"restaurant"},
+  {name:"Dante & Luigi’s", lat:39.9412, lng:-75.1505, type:"restaurant"},
+  {name:"Ralph’s", lat:39.9410, lng:-75.1500, type:"restaurant"},
+  {name:"Villa Di Roma", lat:39.9405, lng:-75.1510, type:"restaurant"},
+  {name:"Saloon", lat:39.9398, lng:-75.1560, type:"restaurant"},
+  {name:"South Philly Barbacoa", lat:39.9342, lng:-75.1625, type:"restaurant"},
+  {name:"Amada", lat:39.9499, lng:-75.1446, type:"restaurant"},
+  {name:"Tria", lat:39.9508, lng:-75.1704, type:"restaurant"},
+  {name:"Pizzeria Vetri", lat:39.9493, lng:-75.1733, type:"restaurant"},
+  {name:"Rouge", lat:39.9490, lng:-75.1738, type:"restaurant"},
+  {name:"Pub & Kitchen", lat:39.9450, lng:-75.1710, type:"restaurant"},
 
-// RESTAURANTS
-const restaurants = {
-  center: ["El Vez","Tria","Pizzeria Vetri","Amada","Rouge"],
-  fishtown: ["Laser Wolf","Suraya","Kalaya","Pizzeria Beddia"],
-  south: ["Victor Cafe","Villa Di Roma","Ralph’s","Dante & Luigi’s"],
-  west: ["White Dog Cafe","Han Dynasty"]
-};
+  {name:"Harp & Crown", lat:39.9490, lng:-75.1652, type:"bar"},
+  {name:"Walnut Beer Garden", lat:39.9483, lng:-75.1705, type:"bar"},
+  {name:"Jerry’s Bar", lat:39.9402, lng:-75.1550, type:"bar"},
+  {name:"Sidecar", lat:39.9433, lng:-75.1582, type:"bar"},
+  {name:"Sardine Bar", lat:39.9335, lng:-75.1572, type:"bar"},
+  {name:"Franklin Mortgage", lat:39.9503, lng:-75.1695, type:"bar"},
+  {name:"Dock Street", lat:39.9570, lng:-75.1990, type:"bar"},
+  {name:"Grace Tavern", lat:39.9418, lng:-75.1570, type:"bar"},
+  {name:"Next of Kin", lat:39.9650, lng:-75.1355, type:"bar"},
+  {name:"Johnny Brenda’s", lat:39.9695, lng:-75.1345, type:"bar"}
+];
 
-// BARS
-const bars = {
-  center: ["Harp & Crown","Franklin Mortgage"],
-  fishtown: ["Johnny Brenda’s","Next of Kin"],
-  south: ["Tap Room"],
-  west: ["Dock Street"]
-};
-
-// LOAD CUSTOM DATA
-let customRestaurants = JSON.parse(localStorage.getItem("restaurants") || "{}");
-let customBars = JSON.parse(localStorage.getItem("bars") || "{}");
+// CUSTOM STORAGE
+let custom = JSON.parse(localStorage.getItem("custom") || "[]");
 
 function saveData() {
-  localStorage.setItem("restaurants", JSON.stringify(customRestaurants));
-  localStorage.setItem("bars", JSON.stringify(customBars));
-}
-
-// RANDOM OFFSET
-function offset(base) {
-  return [
-    base[0] + (Math.random() - 0.5) * 0.01,
-    base[1] + (Math.random() - 0.5) * 0.01
-  ];
+  localStorage.setItem("custom", JSON.stringify(custom));
 }
 
 // ADD MARKERS
@@ -138,67 +118,21 @@ function addMarkers() {
   markers = [];
 
   const search = document.getElementById("search").value.toLowerCase();
-  const selected = document.getElementById("neighborhood").value;
 
-  // DEFAULT RESTAURANTS
-  Object.keys(restaurants).forEach(area => {
-    if (selected !== "all" && selected !== area) return;
+  [...places, ...custom].forEach(p => {
+    if (!p.name.toLowerCase().includes(search)) return;
+    if (!showBars && p.type === "bar") return;
 
-    restaurants[area].forEach(name => {
-      if (!name.toLowerCase().includes(search)) return;
+    const marker = L.circleMarker([p.lat, p.lng], {
+      color: p.type === "bar" ? "red" : "blue",
+      fillColor: p.type === "bar" ? "red" : "blue",
+      radius: 6,
+      fillOpacity: 1
+    }).addTo(map);
 
-      const marker = L.circleMarker(offset(centers[area]), {
-        color:"blue", fillColor:"blue", radius:6, fillOpacity:1
-      }).addTo(map);
-
-      marker.bindPopup(`<b>${name}</b>`);
-      markers.push(marker);
-    });
+    marker.bindPopup(`<b>${p.name}</b><br>${p.type}`);
+    markers.push(marker);
   });
-
-  // DEFAULT BARS
-  if (showBars) {
-    Object.keys(bars).forEach(area => {
-      if (selected !== "all" && selected !== area) return;
-
-      bars[area].forEach(name => {
-        if (!name.toLowerCase().includes(search)) return;
-
-        const marker = L.circleMarker(offset(centers[area]), {
-          color:"red", fillColor:"red", radius:6, fillOpacity:1
-        }).addTo(map);
-
-        marker.bindPopup(`<b>${name}</b>`);
-        markers.push(marker);
-      });
-    });
-  }
-
-  // CUSTOM RESTAURANTS
-  Object.keys(customRestaurants).forEach(area => {
-    customRestaurants[area].forEach(name => {
-      const marker = L.circleMarker(offset(centers[area]), {
-        color:"blue", fillColor:"blue", radius:6, fillOpacity:1
-      }).addTo(map);
-
-      marker.bindPopup(`<b>${name}</b> (custom)`);
-      markers.push(marker);
-    });
-  });
-
-  // CUSTOM BARS
-  if (showBars) {
-    Object.keys(customBars).forEach(area => {
-      customBars[area].forEach(name => {
-        const marker = L.circleMarker(offset(centers[area]), {
-          color:"red", fillColor:"red", radius:6, fillOpacity:1
-        }).addTo(map);
-
-        marker.bindPopup(`<b>${name}</b> (custom)`);
-        markers.push(marker);
-      });
-    });
-  }
 }
 
 // SEARCH
@@ -214,34 +148,27 @@ function toggleBars() {
 function openForm() {
   document.getElementById("formModal").style.display = "block";
 }
-
 function closeForm() {
   document.getElementById("formModal").style.display = "none";
 }
 
-// SAVE PLACE
+// SAVE CUSTOM PLACE (drops at center for now)
 function savePlace() {
   const name = document.getElementById("placeName").value;
   const type = document.getElementById("placeType").value;
-  const area = document.getElementById("placeArea").value;
 
-  if (!name) {
-    alert("Enter a name");
-    return;
-  }
+  if (!name) return alert("Enter name");
 
-  if (type === "restaurant") {
-    if (!customRestaurants[area]) customRestaurants[area] = [];
-    customRestaurants[area].push(name);
-  } else {
-    if (!customBars[area]) customBars[area] = [];
-    customBars[area].push(name);
-  }
+  custom.push({
+    name,
+    type,
+    lat: map.getCenter().lat,
+    lng: map.getCenter().lng
+  });
 
   saveData();
   closeForm();
   addMarkers();
-  document.getElementById("placeName").value = "";
 }
 
 // INIT
