@@ -1,17 +1,13 @@
-HTML
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Philly Food Map</title>
+  <title>Philly Food Map (Offline)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#000000">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
   <style>
-    body { margin:0; font-family: -apple-system; }
+    body { margin:0; }
     #map { height:100vh; }
 
     .panel {
@@ -20,226 +16,73 @@ HTML
       left:10px;
       z-index:1000;
       background:white;
-      padding:12px;
-      border-radius:12px;
-      width:260px;
-      box-shadow:0 6px 18px rgba(0,0,0,0.2);
-    }
-
-    input {
-      width:100%;
       padding:10px;
-      border-radius:8px;
-      border:1px solid #ccc;
-      margin-bottom:8px;
-    }
-
-    button {
-      width:100%;
-      padding:8px;
-      margin-top:5px;
-      border:none;
-      border-radius:8px;
-      background:black;
-      color:white;
-      cursor:pointer;
+      border-radius:10px;
     }
   </style>
 </head>
 <body>
 
 <div class="panel">
-  <input id="search" placeholder="Search (pizza, tacos, etc)">
-  <button onclick="searchPlaces()">Search</button>
-  <button onclick="locateUser()">📍 Near Me</button>
-  <button onclick="toggleBars()">🍸 Toggle Bars</button>
-  <button onclick="generateAICrawl()">🤖 Plan My Night</button>
-  <button onclick="buildCrawl()">🗺️ Open Crawl Route</button>
-
-  <div id="crawlList" style="margin-top:8px; font-size:12px;"></div>
+  Philly Food Map (Offline)
 </div>
 
 <div id="map"></div>
 
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
 <script>
-let map;
-let service;
-let infowindow;
-let markers = [];
+const map = L.map('map').setView([39.9526, -75.1652], 13);
 
-let userLocation = { lat: 39.9526, lng: -75.1652 };
-let showBars = true;
-let crawlStops = [];
-let allPlaces = [];
+// Map tiles (need internet first time, then cached)
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// 🔴 Bars
-const barsList = [
-  "Harp & Crown","Walnut Beer Garden","Mona Speakeasy","Newsroom Speakeasy",
-  "Jerry’s Bar","R&D","Mifflin Tavern","Darling Jack’s","Almanac","Jaffa",
-  "Casa Oui","Next of Kin","Static","Sidecar","Marina’s Pizza","Chicks",
-  "Sardine Bar","Four Humours","Sassafras","Vintage","Cormorant",
-  "Forest & Main","Dock Street","The Franklin Mortgage","Bar1010",
-  "Grace Tavern","River Twice"
+// 🔵 RESTAURANTS
+const restaurants = [
+  ["Osteria", 39.968, -75.160],
+  ["Murphs", 39.969, -75.135],
+  ["Pizzeria Beddia", 39.965, -75.135],
+  ["Laser Wolf", 39.968, -75.135],
+  ["Suraya", 39.968, -75.135],
+  ["Kalaya", 39.967, -75.135],
+  ["El Vez", 39.950, -75.170],
+  ["Dan Dan", 39.950, -75.168],
+  ["Victor Cafe", 39.933, -75.157],
+  ["Fiorella", 39.948, -75.145]
 ];
 
-function initMap() {
-  map = new google.maps.Map(document.getElementById("map"), {
-    center: userLocation,
-    zoom: 14,
-  });
+// 🔴 BARS
+const bars = [
+  ["Harp & Crown", 39.949, -75.165],
+  ["Walnut Beer Garden", 39.948, -75.170],
+  ["Jerry’s Bar", 39.940, -75.155],
+  ["Sidecar", 39.943, -75.158],
+  ["Sardine Bar", 39.933, -75.157]
+];
 
-  infowindow = new google.maps.InfoWindow();
-  service = new google.maps.places.PlacesService(map);
+// ADD BLUE DOTS
+restaurants.forEach(r => {
+  L.circleMarker([r[1], r[2]], {
+    color: "blue",
+    fillColor: "blue",
+    fillOpacity: 1,
+    radius: 6
+  }).addTo(map)
+    .bindPopup(`<b>${r[0]}</b><br>
+    <a href="https://www.google.com/maps/search/${r[0]}" target="_blank">Open in Maps</a>`);
+});
 
-  loadAll();
-}
-
-function loadAll() {
-  clearMarkers();
-  allPlaces = [];
-
-  searchPlaces();
-  if (showBars) loadBars();
-}
-
-function searchPlaces() {
-  const query = document.getElementById("search").value || "restaurants";
-
-  service.nearbySearch({
-    location: userLocation,
-    radius: 3000,
-    keyword: query
-  }, (results, status) => {
-    if (status === google.maps.places.PlacesServiceStatus.OK) {
-      results.forEach(p => createMarker(p, "blue"));
-    }
-  });
-}
-
-function loadBars() {
-  barsList.forEach(name => {
-    service.textSearch({
-      query: name + " Philadelphia",
-      location: userLocation,
-      radius: 5000
-    }, (results, status) => {
-      if (status === google.maps.places.PlacesServiceStatus.OK && results[0]) {
-        createMarker(results[0], "red");
-      }
-    });
-  });
-}
-
-function createMarker(place, color) {
-  if (!place.geometry) return;
-
-  const marker = new google.maps.Marker({
-    map,
-    position: place.geometry.location,
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 6,
-      fillColor: color,
-      fillOpacity: 1,
-      strokeWeight: 1
-    }
-  });
-
-  markers.push(marker);
-
-  allPlaces.push({
-    name: place.name,
-    lat: place.geometry.location.lat(),
-    lng: place.geometry.location.lng(),
-    rating: place.rating || 3.5,
-    userRatings: place.user_ratings_total || 50,
-    type: color === "red" ? "bar" : "restaurant"
-  });
-
-  google.maps.event.addListener(marker, "click", () => {
-    const photo = place.photos ? place.photos[0].getUrl() : "";
-
-    infowindow.setContent(`
-      <div style="max-width:220px">
-        <b>${place.name}</b><br>
-        ⭐ ${place.rating || "N/A"} (${place.user_ratings_total || 0})<br>
-        ${place.opening_hours?.open_now ? "🟢 Open" : "🔴 Closed"}<br><br>
-        ${photo ? `<img src="${photo}" style="width:100%">` : ""}
-        <br><br>
-        <button onclick="addToCrawl('${place.name}', ${place.geometry.location.lat()}, ${place.geometry.location.lng()})">
-          ➕ Add to Crawl
-        </button>
-      </div>
-    `);
-
-    infowindow.open(map, marker);
-  });
-}
-
-function toggleBars() {
-  showBars = !showBars;
-  loadAll();
-}
-
-function locateUser() {
-  navigator.geolocation.getCurrentPosition(pos => {
-    userLocation = {
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude
-    };
-    map.setCenter(userLocation);
-    loadAll();
-  });
-}
-
-function clearMarkers() {
-  markers.forEach(m => m.setMap(null));
-  markers = [];
-}
-
-// 🤖 AI Crawl
-function generateAICrawl() {
-  if (!userLocation) return alert("Enable location");
-
-  let scored = allPlaces.map(p => {
-    const dist = Math.hypot(userLocation.lat - p.lat, userLocation.lng - p.lng);
-    const score = (p.rating * 2) + Math.log(p.userRatings + 1) - (dist * 50);
-    return { ...p, score };
-  });
-
-  scored.sort((a,b)=>b.score-a.score);
-
-  crawlStops = scored.slice(0,5);
-  renderCrawl();
-  buildCrawl();
-}
-
-function addToCrawl(name, lat, lng) {
-  crawlStops.push({name, lat, lng});
-  renderCrawl();
-}
-
-function renderCrawl() {
-  document.getElementById("crawlList").innerHTML =
-    "<b>Crawl:</b><br>" + crawlStops.map(s=>s.name).join("<br>");
-}
-
-function buildCrawl() {
-  if (crawlStops.length < 2) return alert("Add more stops");
-
-  const origin = `${crawlStops[0].lat},${crawlStops[0].lng}`;
-  const destination = `${crawlStops[crawlStops.length-1].lat},${crawlStops[crawlStops.length-1].lng}`;
-
-  const waypoints = crawlStops.slice(1,-1)
-    .map(s=>`${s.lat},${s.lng}`).join("|");
-
-  window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}`);
-}
-</script>
-
-<!-- 🔑 PUT YOUR GOOGLE API KEY BELOW -->
-<script async
-src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDabGcEmvAgYtFEHIMmbeoaboHrRkVw_lo&libraries=places&callback=initMap"
+// ADD RED DOTS
+bars.forEach(b => {
+  L.circleMarker([b[1], b[2]], {
+    color: "red",
+    fillColor: "red",
+    fillOpacity: 1,
+    radius: 6
+  }).addTo(map)
+    .bindPopup(`<b>${b[0]}</b><br>
+    <a href="https://www.google.com/maps/search/${b[0]}" target="_blank">Open in Maps</a>`);
+});
 </script>
 
 </body>
